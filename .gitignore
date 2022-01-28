@@ -127,3 +127,12 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Custom
+.bash_history
+.conda
+.jupyter
+.local
+.pip
+
+data/
