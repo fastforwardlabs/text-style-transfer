@@ -14,7 +14,7 @@ if __name__ == "__main__":
     
     # download data if needed
     if len(os.listdir(RAW_ROOT_PATH)) == 0:
-        os.system(f"!curl -L http://nlp.stanford.edu/projects/bias/bias_data.zip -o {RAW_ROOT_PATH}/bias_data.zip && !unzip {RAW_ROOT_PATH}/bias_data.zip -d {RAW_ROOT_PATH}")
+        os.system(f"curl -L http://nlp.stanford.edu/projects/bias/bias_data.zip -o {RAW_ROOT_PATH}/bias_data.zip && unzip {RAW_ROOT_PATH}/bias_data.zip -d {RAW_ROOT_PATH}")
         
     # preprocess data
     wnc_datasets = build_hf_dataset(RAW_DATA_PATH)
@@ -23,6 +23,6 @@ if __name__ == "__main__":
     wnc_datasets = wnc_datasets.remove_columns(["length_pre", "length_post", "length_delta"])
     
     # save one word version DatasetDict as apache arrow table
-    WORD_VERSION_PATH = os.path.join(TARGET_PATH, 'one-word-version')
+    WORD_VERSION_PATH = os.path.join(TARGET_PATH, 'WNC_oneword')
     os.makedirs(WORD_VERSION_PATH)
     wnc_datasets.save_to_disk(WORD_VERSION_PATH)
