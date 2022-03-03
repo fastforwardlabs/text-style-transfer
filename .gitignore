@@ -136,4 +136,6 @@ dmypy.json
 .pip
 .ssh
 
-data/
+data
+transformers
+nltk_data
