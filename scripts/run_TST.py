@@ -49,6 +49,7 @@ from transformers.file_utils import is_offline_mode
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
+from transformers.integrations import MLflowCallback
 
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
@@ -720,6 +721,8 @@ def main():
         if training_args.predict_with_generate
         else None,
     )
+    
+    trainer.remove_callback(MLflowCallback)
 
     # Training
     if training_args.do_train:
