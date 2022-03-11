@@ -1,0 +1,1 @@
+!tensorboard --logdir=/home/cdsw/models/logs --port $CDSW_READONLY_PORT
