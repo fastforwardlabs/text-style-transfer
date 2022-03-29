@@ -18,22 +18,33 @@ if __name__ == "__main__":
             f"curl -L http://nlp.stanford.edu/projects/bias/bias_data.zip -o {RAW_ROOT_PATH}/bias_data.zip && unzip {RAW_ROOT_PATH}/bias_data.zip -d {RAW_ROOT_PATH}"
         )
 
-    # preprocess data
-    wnc_datasets = build_hf_dataset(RAW_DATA_PATH)
-    wnc_datasets = remove_duplicate_by_revid(wnc_datasets)
-    wnc_datasets = remove_outliers(wnc_datasets)
-    wnc_datasets = wnc_datasets.map(
-        lambda example: {
-            "source_text": example["translation"]["pre"],
-            "target_text": example["translation"]["post"],
-        }
-    )
-    wnc_datasets = wnc_datasets.remove_columns(
-        ["length_pre", "length_post", "length_delta", "translation"]
-    )
-    wnc_datasets["validation"] = wnc_datasets.pop("dev")
+    versions = [
+        {"name": "oneword", "bool_arg": True},
+        {"name": "full", "bool_arg": False},
+    ]
 
-    # save one word version DatasetDict as apache arrow table
-    WORD_VERSION_PATH = os.path.join(TARGET_PATH, "WNC_oneword")
-    os.makedirs(WORD_VERSION_PATH)
-    wnc_datasets.save_to_disk(WORD_VERSION_PATH)
+    for version in versions:
+
+        print(f'Preparing {version["name"]} version of WNC dataset.')
+
+        # preprocess data
+        wnc_datasets = build_hf_dataset(RAW_DATA_PATH, one_word=version["bool_arg"])
+        wnc_datasets = remove_duplicate_by_revid(wnc_datasets)
+        wnc_datasets = remove_outliers(wnc_datasets, one_word=version["bool_arg"])
+        wnc_datasets = wnc_datasets.map(
+            lambda example: {
+                "source_text": example["translation"]["pre"],
+                "target_text": example["translation"]["post"],
+            }
+        )
+        wnc_datasets = wnc_datasets.remove_columns(
+            ["length_pre", "length_post", "length_delta", "translation"]
+        )
+        wnc_datasets["validation"] = wnc_datasets.pop("dev")
+
+        # save version of DatasetDict as apache arrow table
+        VERSION_PATH = os.path.join(TARGET_PATH, f"WNC_{version['name']}")
+        os.makedirs(VERSION_PATH)
+        wnc_datasets.save_to_disk(VERSION_PATH)
+
+        print(f'Finished preparing {version["name"]} version of WNC dataset.')
