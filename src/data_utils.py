@@ -3,6 +3,7 @@ from functools import reduce
 from operator import concat
 from collections import defaultdict
 
+import pandas as pd
 from tqdm import tqdm
 from datasets import load_dataset, Dataset, DatasetDict, Value, Translation, Features
 
@@ -85,8 +86,8 @@ def remove_duplicate_by_revid(datasets: DatasetDict) -> DatasetDict:
     """
 
     rev_ids = reduce(concat, [datasets[split]["rev_id"] for split in datasets.keys()])
-
-    duplicate_revids = set([rev_id for rev_id in rev_ids if rev_ids.count(rev_id) > 1])
+    rev_ids_pd = pd.Series(rev_ids)
+    duplicate_revids = rev_ids_pd[rev_ids_pd.duplicated()].tolist()
 
     print(f"{len(duplicate_revids)*2} duplicate records have been removed.")
 
