@@ -19,7 +19,7 @@ if __name__ == "__main__":
         )
 
     versions = [
-        {"name": "oneword", "bool_arg": True},
+        {"name": "one_word", "bool_arg": True},
         {"name": "full", "bool_arg": False},
     ]
 

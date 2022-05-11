@@ -313,7 +313,8 @@ summarization_name_mapping = {
     "xglue": ("news_body", "news_title"),
     "xsum": ("document", "summary"),
     "wiki_summary": ("article", "highlights"),
-    "wnc_one_word": ("source_text", "target_text")
+    "wnc_one_word": ("source_text", "target_text"),
+    "wnc_full": ("source_text", "target_text")
 }
 
 
@@ -332,7 +333,7 @@ def main():
             json_file=os.path.abspath(sys.argv[1])
         )
     else:
-        model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+        model_args, data_args, training_args = parser.parse_args_into_dataclasses()how 
 
     # Setup logging
     logging.basicConfig(
@@ -401,10 +402,10 @@ def main():
     # download the dataset.
     if data_args.dataset_name is not None:
         
-        if data_args.dataset_name in ['wnc_one_word']:
+        if data_args.dataset_name in ['wnc_one_word', 'wnc_full']:
             # FOR TST only
             print('WORKING DIR:', os.getcwd())
-            raw_datasets = load_from_disk("data/processed/WNC_oneword")
+            raw_datasets = load_from_disk(f"data/processed/WNC_{'_'.join(data_args.dataset_name.split('_')[1:])}")
         else:
             # Downloading and loading a dataset from the hub.
             raw_datasets = load_dataset(
