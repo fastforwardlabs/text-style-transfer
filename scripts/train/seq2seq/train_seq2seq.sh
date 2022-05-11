@@ -9,7 +9,7 @@ echo "Training new model that will be saved at ~/models/$model_name"
 
 ldconfig
 
-python3 scripts/run_TST.py \
+python3 scripts/train/seq2seq/train_seq2seq.py \
     --model_name_or_path facebook/bart-base \
     --do_train \
     --do_eval \
@@ -38,5 +38,5 @@ python3 scripts/run_TST.py \
     # --max_eval_samples=250 \
     # --max_predict_samples=250
 
-cp ./scripts/train.sh "./models/$model_name/COPY-train.sh"
-echo "Placed a copy of this train script in ./models/$model_name/COPY-train.sh"
+cp ./scripts/train/seq2seq/train_seq2seq.sh "./models/$model_name/COPY-train_seq2seq.sh"
+echo "Placed a copy of this train script in ./models/$model_name/COPY-train_seq2seq.sh"

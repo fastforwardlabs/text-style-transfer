@@ -30,9 +30,10 @@ from transformers import (
 
 
 @dataclass
-class StiArguments:
+class StiTrainingArguments:
     """
-    TrainingArguments is the subset of the arguments we use in our example scripts **which relate to the training loop itself**.
+    TrainingArguments is the subset of the arguments we use in our example scripts **which relate to the training loop itself**. Here we are selecting only those relevant to our Style Transfer Intensity classification problem.
+    
     Using [`HfArgumentParser`] we can turn this class into [argparse](https://docs.python.org/3/library/argparse#module-argparse) arguments that can be specified on the command line.
     """
     output_dir: str = field(
@@ -86,7 +87,17 @@ class StiArguments:
     greater_is_better: Optional[bool] = field(
         default=None, metadata={"help": "Whether the `metric_for_best_model` should be maximized or not."}
     )
+
+@dataclass
+class MiscArguments:
+    """
+    Additional modeling arguments that are not a direct part of `transformers.TrainingArguments`.
     
+    """
+    
+    model_name_or_path: str = field(
+        metadata={"help": "Path to pretrained model or model identifier from huggingface.co/models"}
+    )
 
 
 def main():
@@ -94,19 +105,21 @@ def main():
     set_seed(42)
     
     # establish training arguments 
-    parser = HfArgumentParser(StiArguments)
-    sti_args = parser.parse_args_into_dataclasses()
-    training_args = TrainingArguments(**vars(sti_args[0]))
+    parser = HfArgumentParser((StiTrainingArguments, MiscArguments))
+    sti_args, misc_args = parser.parse_args_into_dataclasses()
+    training_args = TrainingArguments(**vars(sti_args))
     
     if not os.path.exists(training_args.output_dir):
         os.makedirs(training_args.output_dir)
+        
+    print("TEST!!!!", misc_args.model_name_or_path)
     
     # load WNC classification dataset
     CLS_DATASET_PATH = "/home/cdsw/data/processed/WNC_full_cls"
     wnc_full_cls = load_from_disk(CLS_DATASET_PATH)
     
     # load base-model and tokenizer
-    checkpoint = "bert-base-uncased"
+    checkpoint = misc_args.model_name_or_path
     tokenizer = AutoTokenizer.from_pretrained(checkpoint)
 
     def tokenize_function(example):
@@ -143,7 +156,7 @@ def main():
 
     trainer.remove_callback(MLflowCallback)
 
-    trainer.train()
+    # trainer.train()
     
 if __name__ == "__main__":
     main()

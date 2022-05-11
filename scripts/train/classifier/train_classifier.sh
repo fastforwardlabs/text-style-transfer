@@ -9,7 +9,8 @@ echo "Training new model that will be saved at ~/models/$model_name"
 
 ldconfig
 
-python3 scripts/run_classifier.py \
+python3 scripts/train/classifier/train_classifier.py \
+    --model_name_or_path "bert-base-uncased" \
     --output_dir="./models/$model_name" \
     --overwrite_output_dir=True \
     --learning_rate=3e-05 \
@@ -27,5 +28,5 @@ python3 scripts/run_classifier.py \
     --metric_for_best_model="eval_accuracy" \
     --greater_is_better=True \
 
-cp ./scripts/train_classifier.sh "./models/$model_name/COPY-train_classifier.sh"
+cp ./scripts/train/classifier/train_classifier.sh "./models/$model_name/COPY-train_classifier.sh"
 echo "Placed a copy of this train script in ./models/$model_name/COPY-train_classifier.sh"
