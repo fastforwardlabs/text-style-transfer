@@ -135,6 +135,10 @@ dmypy.json
 .local
 .pip
 .ssh
+.viminfo
+.vscode-server/
+.vscode/
+.wget-hsts
 
 data
 transformers
