@@ -405,7 +405,7 @@ def main():
         if data_args.dataset_name in ['wnc_one_word', 'wnc_full']:
             # FOR TST only
             print('WORKING DIR:', os.getcwd())
-            raw_datasets = load_from_disk(f"data/processed/WNC_{'_'.join(data_args.dataset_name.split('_')[1:])}")
+            raw_datasets = load_from_disk(f"data/processed/WNC_seq2seq{'_'.join(data_args.dataset_name.split('_')[1:])}")
         else:
             # Downloading and loading a dataset from the hub.
             raw_datasets = load_dataset(
