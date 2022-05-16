@@ -3,15 +3,17 @@ from functools import reduce
 from operator import concat
 from collections import defaultdict
 
+import numpy as np
 import pandas as pd
 import seaborn as sns
 from tqdm import tqdm
-from datasets import load_dataset, Dataset, DatasetDict, Value, Translation, Features
+from datasets import load_dataset, Dataset, DatasetDict, Value, Translation, ClassLabel, Features, load_from_disk
 
 
-def build_hf_dataset(path: str, one_word=True) -> DatasetDict:
+def construct_seq2seq_dataset(path: str, one_word=True) -> DatasetDict:
     """
-    Formats the raw data into HuggingFace DatasetDict object.
+    Process the raw data into HuggingFace DatasetDict object formatted 
+    for a translation/seq2seq task.
 
     If one_word = True:
         Provided a path to the raw Wiki Neutrality Corpus (WNC) data files,
@@ -217,6 +219,53 @@ def remove_outliers(datasets: DatasetDict, one_word=True) -> DatasetDict:
 
     return datasets
 
+def construct_classification_dataset(path: str) -> DatasetDict:
+    """
+    Formats the translation-task version of WNC as a classification dataset.
+
+    Dataset splits remain the same, but the number of records in each split are doubled
+    as we create an individual record for both the "source_text" and "target_text" fields.
+    In this way, "source_text" is assigned a label of "subjective" and "target_text" is assigned
+    a label of "neutral". Records are randomly shuffled within each split.
+
+    Args:
+        path (str): path to HuggingFace dataset
+
+    Returns:
+        DatasetDict
+
+    """
+    datasets = load_from_disk(path)
+    dataset_dict = defaultdict(dict)
+
+    SPLITS = ["train", "test", "validation"]
+    LABEL_MAPPING = {"source_text": "subjective", "target_text": "neutral"}
+    FEATURES = Features(
+        {
+            "text": Value("string"),
+            "label": ClassLabel(num_classes=2, names=["subjective", "neutral"]),
+        }
+    )
+
+    for split in SPLITS:
+        df = datasets[split].to_pandas()
+        split_dict = defaultdict(list)
+
+        for column, label in LABEL_MAPPING.items():
+            split_dict["text"].extend(df[column].tolist())
+            split_dict["label"].extend([label] * len(df))
+
+        # reorder records so subjective/neutral pairs alternate in sequence
+        temp_df = pd.DataFrame(split_dict)
+        dfs = np.split(temp_df, indices_or_sections=2, axis=0)
+        dfs = [df.reset_index(drop=True) for df in dfs]
+        temp_df = pd.concat(dfs).sort_index(kind="merge").reset_index(drop=True)
+
+        dataset_dict[split] = Dataset.from_dict(
+            temp_df.to_dict(orient="list"), features=FEATURES
+        )
+
+    return DatasetDict(dataset_dict)
 
 def plot_length_dist_bysplit(datasets):
     """

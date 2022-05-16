@@ -101,7 +101,7 @@ class MiscArguments:
     )
     dataset_name: Optional[str] = field(
         default=None,
-        metadata={"help": "The name of the dataset to use (via the datasets library)."},
+        metadata={"help": "The name of the WNC dataset to use: wnc_cls_full)."},
     )
     shuffle_train: bool = field(
         default=True,
@@ -115,7 +115,7 @@ class CustomTrainer(Trainer):
 
     This customization allows us to introduce a flag that disables shuffling on the DataLoader. When
     `shuffle_train` flag is True, a RandomSampler is used via `self._get_train_sampler`. When set to False,
-    a BatchSampler(SequentialSampler()) is utilized in the dataloader.
+    a SequentialSampler is utilized in the dataloader.
 
     """
 
