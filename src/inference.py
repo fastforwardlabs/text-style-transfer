@@ -13,6 +13,7 @@ class SubjectivityNeutralizer:
 
     Attributes:
         model_identifier (str) - Path to the model that will be used by the pipeline to make predictions.
+        max_gen_lenght (int) - upper limit on number of tokens the model can generate as output
 
 
     TO-DO:
