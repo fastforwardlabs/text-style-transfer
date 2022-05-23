@@ -3,7 +3,7 @@
 # This script should be run from the /home/cdsw directory
 # Run classifier training script by passing a model name as argument
 # EX: ./train_classifier.sh <model-name>
-model_name="TRIAL-D-noshuffle-lr_3en05-epoch_10-wd_.01-bs_16"
+model_name="TRIAL-K-shuffle-lr_3en07-epoch_15-wd_.01-bs_32"
 trial_name=${model_name:0:7}
 trial_name=${trial_name,,}
 
@@ -17,13 +17,13 @@ python3 scripts/train/classifier/train_classifier.py \
     --model_name_or_path="bert-base-uncased" \
     --dataset_name="wnc_cls_full" \
     --output_dir="./models/$model_name" \
-    --overwrite_output_dir=True \
-    --learning_rate=3e-05 \
+    --overwrite_output_dir=False \
+    --learning_rate=3e-07 \
     --weight_decay=0.01 \
-    --shuffle_train=False \
-    --per_device_train_batch_size=16 \
+    --shuffle_train=True \
+    --per_device_train_batch_size=32 \
     --per_device_eval_batch_size=16 \
-    --num_train_epochs=10 \
+    --num_train_epochs=15 \
     --logging_dir="./models/logs/$model_name" \
     --logging_steps=5000 \
     --logging_strategy="steps" \

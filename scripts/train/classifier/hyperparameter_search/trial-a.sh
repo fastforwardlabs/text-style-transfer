@@ -27,7 +27,7 @@ python3 scripts/train/classifier/train_classifier.py \
     --logging_steps=5000 \
     --logging_strategy="steps" \
     --evaluation_strategy="epoch" \
-    --save_strategy="epoch"
+    --save_strategy="epoch" \
     --save_total_limit=2 \
     --load_best_model_at_end=True \
     --metric_for_best_model="eval_accuracy" \

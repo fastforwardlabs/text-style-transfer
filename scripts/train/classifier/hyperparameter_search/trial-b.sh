@@ -3,13 +3,13 @@
 # This script should be run from the /home/cdsw directory
 # Run classifier training script by passing a model name as argument
 # EX: ./train_classifier.sh <model-name>
-model_name="TRIAL_B-shuffle-lr_3en05-epoch_10-wd_.01-bs_16"
+model_name="TRIAL-B-shuffle-lr_3en05-epoch_10-wd_.01-bs_16"
 trial_name=${model_name:0:7}
 trial_name=${trial_name,,}
 
 echo "Training new model that will be saved at ~/models/$model_name"
 mkdir ~/models/$model_name
-cp ./scripts/train/classifier/hyperparameter_search/$trial_name.sh "./models/$model_name/COPY-train_classifier.sh"
+cp ./scripts/train/classifier/hyperparameter_search/${trial_name}.sh "./models/$model_name/COPY-train_classifier.sh"
 echo "Placed a copy of this train script in ./models/$model_name/COPY-train_classifier.sh"
 
 ldconfig
@@ -29,7 +29,7 @@ python3 scripts/train/classifier/train_classifier.py \
     --logging_steps=5000 \
     --logging_strategy="steps" \
     --evaluation_strategy="epoch" \
-    --save_strategy="epoch"
+    --save_strategy="epoch" \
     --save_total_limit=2 \
     --load_best_model_at_end=True \
     --metric_for_best_model="eval_accuracy" \

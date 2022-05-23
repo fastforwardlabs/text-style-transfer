@@ -9,6 +9,7 @@ def main():
 
     print(f'Running {args.name}')
     os.system(f"./scripts/train/classifier/hyperparameter_search/{args.name}")
+    print("RUNNING AFTER LAUNCH")
 
 if __name__ == "__main__":
     main()

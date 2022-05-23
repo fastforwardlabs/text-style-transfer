@@ -3,7 +3,7 @@
 # This script should be run from the /home/cdsw directory
 # Run classifier training script by passing a model name as argument
 # EX: ./train_classifier.sh <model-name>
-model_name="TRIAL-D-noshuffle-lr_3en05-epoch_10-wd_.01-bs_16"
+model_name="TRIAL-H-noshuffle-lr_3en05-epoch_10-wd_.01-bs_32"
 trial_name=${model_name:0:7}
 trial_name=${trial_name,,}
 
@@ -21,7 +21,7 @@ python3 scripts/train/classifier/train_classifier.py \
     --learning_rate=3e-05 \
     --weight_decay=0.01 \
     --shuffle_train=False \
-    --per_device_train_batch_size=16 \
+    --per_device_train_batch_size=32 \
     --per_device_eval_batch_size=16 \
     --num_train_epochs=10 \
     --logging_dir="./models/logs/$model_name" \
