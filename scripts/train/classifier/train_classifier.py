@@ -50,6 +50,7 @@ class StiTrainingArguments:
         },
     )
     learning_rate: float = field(default=5e-5, metadata={"help": "The initial learning rate for AdamW."})
+    weight_decay: float = field(default=0.0, metadata={"help": "Weight decay for AdamW if we apply some."})
     per_device_train_batch_size: int = field(
         default=8, metadata={"help": "Batch size per GPU/TPU core/CPU for training."}
     )
@@ -67,6 +68,10 @@ class StiTrainingArguments:
     evaluation_strategy: IntervalStrategy = field(
         default="no",
         metadata={"help": "The evaluation strategy to use."},
+    )
+    save_strategy: IntervalStrategy = field(
+        default="steps",
+        metadata={"help": "The checkpoint save strategy to use."},
     )
     save_steps: int = field(default=500, metadata={"help": "Save checkpoint every X updates steps."})
     save_total_limit: Optional[int] = field(
@@ -136,11 +141,12 @@ class CustomTrainer(Trainer):
 
         train_dataset = self.train_dataset
         data_collator = self.data_collator
-
+        
         if isinstance(train_dataset, Dataset):
             train_dataset = self._remove_unused_columns(
                 train_dataset, description="training"
             )
+            print(train_dataset)
         else:
             data_collator = self._get_collator_with_removed_columns(
                 data_collator, description="training"
@@ -176,9 +182,10 @@ def main():
         os.makedirs(training_args.output_dir)
     
     # load WNC classification dataset
-    if data_args.dataset_name in ['wnc_cls_full']:
-        CLS_DATASET_PATH = f"data/processed/WNC_cls{'_'.join(data_args.dataset_name.split('_')[2:])}"
-        datasets = load_from_disk(CLS_DATASET_PATH)
+    if misc_args.dataset_name in ['wnc_cls_full']:
+        CLS_DATASET_PATH = f"data/processed/WNC_cls_{'_'.join(misc_args.dataset_name.split('_')[2:])}"
+        print(CLS_DATASET_PATH)
+        data = load_from_disk(CLS_DATASET_PATH)
     else:
         raise ValueError("Must specify the classification version of WNC: wnc_cls_full")
     
@@ -189,7 +196,7 @@ def main():
     def tokenize_function(example):
         return tokenizer(example["text"], truncation=True)
 
-    tokenized_datasets = datasets.map(tokenize_function, batched=True)
+    tokenized_datasets = data.map(tokenize_function, batched=True)
     data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 
 
@@ -198,15 +205,17 @@ def main():
     def compute_metrics(eval_preds):
 
         accuracy_metric = load_metric("accuracy")
-        f1_metric = load_metric("f1")
+        # f1_metric = load_metric("f1")
 
         logits, labels = eval_preds
         predictions = np.argmax(logits, axis=-1)
 
-        return {
-            "accuracy": accuracy_metric.compute(predictions=predictions, references=labels),
-            "f1": f1_metric.compute(predictions=predictions, references=labels),
-        }
+        # return {
+        #     "accuracy": accuracy_metric.compute(predictions=predictions, references=labels),
+        #     "f1": f1_metric.compute(predictions=predictions, references=labels),
+        # }
+        
+        return accuracy_metric.compute(predictions=predictions, references=labels)
 
     trainer = CustomTrainer(
         shuffle_train=misc_args.shuffle_train,
@@ -221,7 +230,7 @@ def main():
 
     trainer.remove_callback(MLflowCallback)
 
-    # trainer.train()
+    trainer.train()
     
 if __name__ == "__main__":
     main()
