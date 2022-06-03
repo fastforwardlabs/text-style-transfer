@@ -221,16 +221,31 @@ class StyleClassifierEvaluation:
                 subj_idx = row.name - 1
                 neut_idx = row.name
 
-            print(
-                f"Record #{row.name} classified as {pred_label}, when actually {actual_label}: \n\t",
-                self.metric_df.loc[subj_idx].text,
-            )
-            print()
-            print(
-                f"Here's its {pred_label} counterpart #{neut_idx}: \n\t",
-                self.metric_df.loc[neut_idx].text,
-            )
-            print(
-                "---------------------------------------------------------------------"
-            )
-            print()
+            if kind == "fp":
+                print(
+                    f"Record #{row.name} classified as {pred_label}, when actual label is {actual_label}: \n\t",
+                    self.metric_df.loc[subj_idx].text,
+                )
+                print()
+                print(
+                    f"Here's its {pred_label} labeled counterpart #{neut_idx}: \n\t",
+                    self.metric_df.loc[neut_idx].text,
+                )
+                print(
+                    "---------------------------------------------------------------------"
+                )
+                print()
+            else:
+                print(
+                    f"Record #{row.name} classified as {pred_label}, when actual label is {actual_label}: \n\t",
+                    self.metric_df.loc[neut_idx].text,
+                )
+                print()
+                print(
+                    f"Here's its {pred_label} labeled counterpart #{subj_idx}: \n\t",
+                    self.metric_df.loc[subj_idx].text,
+                )
+                print(
+                    "---------------------------------------------------------------------"
+                )
+                print()
