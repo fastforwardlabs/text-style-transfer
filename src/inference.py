@@ -2,7 +2,14 @@ from typing import List
 
 import torch
 import numpy as np
-from transformers import pipeline
+import pandas as pd
+from transformers_interpret import SequenceClassificationExplainer
+from transformers import (
+    pipeline,
+    AutoTokenizer,
+    AutoModel,
+    AutoModelForSequenceClassification,
+)
 
 from src.evaluation import calculate_emd
 
@@ -37,7 +44,7 @@ class SubjectivityNeutralizer:
             max_length=self.max_gen_length,
         )
 
-    def transfer(self, input_text):
+    def transfer(self, input_text: List[str]) -> List[str]:
         """
         Generate a neutral form of the provided text(s) while retaining
         the semantic meaning of input.
@@ -132,3 +139,236 @@ class StyleIntensityClassifier:
             calculate_emd(input_dist[i], output_dist[i], target_class_idx)
             for i in range(len(input_dist))
         ]
+
+
+class ContentPreservationScorer:
+    """
+
+    Attributes:
+        sbert_model_identifier (str)
+
+    """
+
+    def __init__(self, cls_model_identifier: str, sbert_model_identifier: str):
+
+        self.cls_model_identifier = cls_model_identifier
+        self.sbert_model_identifier = sbert_model_identifier
+        self.device = torch.cuda.current_device() if torch.cuda.is_available() else -1
+
+        self._initialize_hf_artifacts()
+
+    def _initialize_hf_artifacts(self):
+        """
+        Initialize a HuggingFace artifacts (tokenizer and model) according
+        to the provided identifiers for both SBert and the classification model.
+        Then initialize the word attribution explainer with the HF model+tokenizer.
+
+        """
+
+        # sbert
+        self.sbert_tokenizer = AutoTokenizer.from_pretrained(
+            self.sbert_model_identifier
+        )
+        self.sbert_model = AutoModel.from_pretrained(self.sbert_model_identifier)
+
+        # classifer
+        self.cls_tokenizer = AutoTokenizer.from_pretrained(self.cls_model_identifier)
+        self.cls_model = AutoModelForSequenceClassification.from_pretrained(
+            self.cls_model_identifier
+        )
+        self.cls_model.to(self.device)
+        self.explainer = SequenceClassificationExplainer(
+            self.cls_model, self.cls_tokenizer
+        )
+
+    def compute_sentence_embeddings(self, input_text: List[str]) -> torch.Tensor:
+        """
+        Compute sentence embeddings for each sentence provided a list of text strings.
+
+        Args:
+            input_text (List[str]) - list of input sentences to encode
+
+        Returns:
+            sentence_embeddings (torch.Tensor)
+
+        """
+        # tokenize sentences
+        encoded_input = self.sbert_tokenizer(
+            input_text,
+            padding=True,
+            truncation=True,
+            max_length=256,
+            return_tensors="pt",
+        )
+
+        # to device
+        self.sbert_model.eval()
+        self.sbert_model.to(self.device)
+        encoded_input = {k: v.to(self.device) for k, v in encoded_input.items()}
+
+        # compute token embeddings
+        with torch.no_grad():
+            model_output = self.sbert_model(**encoded_input)
+
+        return (
+            self.mean_pooling(model_output, encoded_input["attention_mask"])
+            .detach()
+            .cpu()
+        )
+
+    def calculate_content_preservation_score(
+        self, input_text: List[str], output_text: List[str]
+    ) -> List[float]:
+        """
+        Calcualates the content preservation score (CPS) between two pieces of text.
+
+        Args:
+            input_text (list) - list of input texts with indicies corresponding
+                to counterpart in output_text
+            ouptput_text (list) - list of output texts with indicies corresponding
+                to counterpart in input_text
+
+        Returns:
+            A list of floats with corresponding style transfer intensity scores.
+
+        PSUEDO-CODE: (higher score is better preservation)
+            1. mask out style tokens for input and output text
+            2. get SBERT embedddings for each
+            3. calculate cosine similarity
+        """
+        if len(input_text) != len(output_text):
+            raise ValueError(
+                "input_text and output_text must be of same length with corresponding items"
+            )
+
+        pass
+
+    def calculate_feature_attribution_scores(
+        self, text: str, class_index: int = 0, as_norm: bool = False
+    ) -> List[tuple]:
+        """
+        Calcualte feature attributions using integrated gradients.
+
+        Args:
+            text (str) - text to get attributions for
+            class_index (int) - Optional output index to provide attributions for
+
+        """
+        attributions = self.explainer(text, index=class_index)
+
+        if as_norm:
+            return self.format_feature_attribution_scores(attributions)
+
+        return attributions
+
+    def mask_style_tokens(
+        self,
+        text: str,
+        threshold: float = 0.3,
+        mask_token: str = "[PAD]",
+        class_index: int = 0,
+    ) -> str:
+        """
+
+        TO-DO:
+            - add docstring with all logic in plain english
+            - generalize mask token to work with other tokens + removal
+
+        """
+
+        # get attributions and format as dataframe
+        attributions = self.calculate_feature_attribution_scores(
+            text, class_index=class_index, as_norm=False
+        )
+        attributions_df = self.format_feature_attribution_scores(attributions)
+
+        # select tokens to mask
+        token_idxs_to_mask = []
+
+        # If the first token accounts for more than the set
+        # threshold, take just that token to maks. Otherwise,
+        # take all tokens up to the threshold
+        if attributions_df.iloc[0]["cumulative"] > threshold:
+            token_idxs_to_mask.append(attributions_df.index[0])
+        else:
+            token_idxs_to_mask.extend(
+                attributions_df[
+                    attributions_df["cumulative"] <= threshold
+                ].index.to_list()
+            )
+
+        # Build text sequence with tokens masked out
+        toks = [token for token, score in attributions]
+        for idx in token_idxs_to_mask:
+            toks[idx] = mask_token
+
+        # Decode that sequence
+        masked_text = self.explainer.tokenizer.decode(
+            self.explainer.tokenizer.convert_tokens_to_ids(toks),
+            skip_special_tokens=False,
+        )
+
+        # Remove special characters other than mask_token
+        for special_token in self.explainer.tokenizer.all_special_tokens:
+            if special_token != "[PAD]":
+                masked_text = masked_text.replace(special_token, "")
+
+        return masked_text.strip()
+
+    def visualize_feature_attribution_scores(self, text: str, class_index: int = 0):
+        """
+        Calculates and visualizes feature attributions using integrated gradients.
+
+        Args:
+            text (str) - text to get attributions for
+            class_index (int) - Optional output index to provide attributions for
+
+        """
+        self.explainer(text, index=class_index)
+        self.explainer.visualize()
+
+    @staticmethod
+    def format_feature_attribution_scores(attributions: List[tuple]) -> pd.DataFrame:
+        """Utility for formatting attribution scores for style token mask selection"""
+
+        df = pd.DataFrame(attributions, columns=["token", "score"])
+        df["abs_norm"] = df["score"].abs() / df["score"].abs().sum()
+        df = df.sort_values(by="abs_norm", ascending=False)
+        df["cumulative"] = df["abs_norm"].cumsum()
+        return df
+
+    @staticmethod
+    def cosine_similarity(tensor1: torch.Tensor, tensor2: torch.Tensor) -> List[float]:
+        """ """
+
+        assert tensor1.shape == tensor2.shape
+
+        # ensure 2D tensor
+        if tensor1.ndim == 1:
+            tensor1 = tensor1.unsqueeze(0)
+            tensor2 = tensor2.unsqueeze(0)
+
+        cos_sim = torch.nn.CosineSimilarity(dim=1, eps=1e-6)
+        return cos_sim(tensor1, tensor2).tolist()
+
+    @staticmethod
+    def mean_pooling(model_output, attention_mask):
+        """
+        Peform mean pooling over token embeddings to create sentence embedding. Here we take
+        the attention mask into account for correct averaging on active token positions.
+
+        CODE BORROWED FROM:
+            https://www.sbert.net/examples/applications/computing-embeddings/README.html#sentence-embeddings-with-transformers
+
+        """
+
+        token_embeddings = model_output[
+            0
+        ]  # First element of model_output contains all token embeddings
+        input_mask_expanded = (
+            attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+        )
+        sum_embeddings = torch.sum(token_embeddings * input_mask_expanded, 1)
+        sum_mask = torch.clamp(input_mask_expanded.sum(1), min=1e-9)
+
+        return sum_embeddings / sum_mask
