@@ -270,16 +270,29 @@ class ContentPreservationScorer:
         class_index: int = 0,
     ) -> str:
         """
+        Utility function to mask out style tokens from a given string of text.
+
+        Style tokens are determined by first calculating feature importances (via
+        word attributions from trained StyleClassifer) for each token in the input sentence.
+        We then normalize the absolute values of attributions scores to see how much each token
+        contributes as a percentage overall style classification and rank those in descending order.
+
+        We then select the top N tokens that account for the cumulative _threshold_ amount (%) of
+        total styleattribution. By using cumulative percentages, N is not a fixed number and we
+        ultimately take however many tokens are needed to account for _threshold_ % of the overall
+        style.
+
+        We can optionally return a string with these style tokens padded out or completely removed
+        by toggling _mask_type_ between "pad" and "remove".
 
         Args:
-            text
-            threshold (float)
+            text (str)
+            threshold (float) - percentage of style attribution as cutoff for masking selection.
             mask_type (str) - "pad" or "remove", indicates how to handle style tokens
             class_index (str)
 
-        TO-DO:
-            - add docstring with all logic in plain english
-            - generalize mask token to work with other tokens + removal
+        Returns:
+            text (str)
 
         """
 
