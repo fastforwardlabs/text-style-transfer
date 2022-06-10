@@ -247,7 +247,8 @@ class ContentPreservationScorer:
         self, text: str, class_index: int = 0, as_norm: bool = False
     ) -> List[tuple]:
         """
-        Calcualte feature attributions using integrated gradients.
+        Calcualte feature attributions using integrated gradients by passing
+        a string of text as input.
 
         Args:
             text (str) - text to get attributions for
@@ -265,10 +266,16 @@ class ContentPreservationScorer:
         self,
         text: str,
         threshold: float = 0.3,
-        mask_token: str = "[PAD]",
+        mask_type: str = "pad",
         class_index: int = 0,
     ) -> str:
         """
+
+        Args:
+            text
+            threshold (float)
+            mask_type (str) - "pad" or "remove", indicates how to handle style tokens
+            class_index (str)
 
         TO-DO:
             - add docstring with all logic in plain english
@@ -276,7 +283,7 @@ class ContentPreservationScorer:
 
         """
 
-        # get attributions and format as dataframe
+        # get attributions and format as sorted dataframe
         attributions = self.calculate_feature_attribution_scores(
             text, class_index=class_index, as_norm=False
         )
@@ -286,7 +293,7 @@ class ContentPreservationScorer:
         token_idxs_to_mask = []
 
         # If the first token accounts for more than the set
-        # threshold, take just that token to maks. Otherwise,
+        # threshold, take just that token to mask. Otherwise,
         # take all tokens up to the threshold
         if attributions_df.iloc[0]["cumulative"] > threshold:
             token_idxs_to_mask.append(attributions_df.index[0])
@@ -298,9 +305,13 @@ class ContentPreservationScorer:
             )
 
         # Build text sequence with tokens masked out
+        mask_map = {"pad": "[PAD]", "remove": ""}
         toks = [token for token, score in attributions]
         for idx in token_idxs_to_mask:
-            toks[idx] = mask_token
+            toks[idx] = mask_map[mask_type]
+
+        if mask_type == "remove":
+            toks = [token for token in toks if token != ""]
 
         # Decode that sequence
         masked_text = self.explainer.tokenizer.decode(
@@ -308,7 +319,7 @@ class ContentPreservationScorer:
             skip_special_tokens=False,
         )
 
-        # Remove special characters other than mask_token
+        # Remove special characters other than [PAD]
         for special_token in self.explainer.tokenizer.all_special_tokens:
             if special_token != "[PAD]":
                 masked_text = masked_text.replace(special_token, "")
@@ -329,7 +340,13 @@ class ContentPreservationScorer:
 
     @staticmethod
     def format_feature_attribution_scores(attributions: List[tuple]) -> pd.DataFrame:
-        """Utility for formatting attribution scores for style token mask selection"""
+        """
+        Utility for formatting attribution scores for style token mask selection
+
+        Sorts a given List[tuple] where tuples represent (token, score) by the
+        normalized absolute value of each token score.
+
+        """
 
         df = pd.DataFrame(attributions, columns=["token", "score"])
         df["abs_norm"] = df["score"].abs() / df["score"].abs().sum()
