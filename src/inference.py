@@ -3,6 +3,7 @@ from typing import List
 import torch
 import numpy as np
 import pandas as pd
+from pyemd import emd
 from transformers_interpret import SequenceClassificationExplainer
 from transformers import (
     pipeline,
@@ -10,8 +11,6 @@ from transformers import (
     AutoModel,
     AutoModelForSequenceClassification,
 )
-
-from src.evaluation import calculate_emd
 
 
 class SubjectivityNeutralizer:
@@ -81,7 +80,7 @@ class StyleIntensityClassifier:
             return_all_scores=True,
         )
 
-    def score(self, input_text):
+    def score(self, input_text: List[str]):
         """
         Classify a given input text as subjective or neutral using
         model initialized by the class.
@@ -136,15 +135,64 @@ class StyleIntensityClassifier:
         output_dist = [item["distribution"] for item in self.score(output_text)]
 
         return [
-            calculate_emd(input_dist[i], output_dist[i], target_class_idx)
+            self.calculate_emd(input_dist[i], output_dist[i], target_class_idx)
             for i in range(len(input_dist))
         ]
+
+    @staticmethod
+    def calculate_emd(input_dist, output_dist, target_class_idx):
+        """
+        Calculate the direction-corrected Earth Mover's Distance (aka Wasserstein distance)
+        between two distributions of equal length. Here we penalize the EMD score if
+        the output text style moved further away from the target style.
+
+        Reference: https://github.com/passeul/style-transfer-model-evaluation/blob/master/code/style_transfer_intensity.py
+
+        Args:
+            input_dist (list) - probabilities assigned to the style classes
+                from the input text to style transfer model
+            output_dist (list) - probabilities assigned to the style classes
+                from the outut text of the style transfer model
+
+        Returns:
+            emd (float) - Earth Movers Distance between the two distributions
+
+        """
+
+        N = len(input_dist)
+        distance_matrix = np.ones((N, N))
+        dist = emd(np.array(input_dist), np.array(output_dist), distance_matrix)
+
+        transfer_direction_correction = (
+            1 if output_dist[target_class_idx] >= input_dist[target_class_idx] else -1
+        )
+
+        return round(dist * transfer_direction_correction, 4)
 
 
 class ContentPreservationScorer:
     """
+    Utility for calculating Content Preservation Score between
+    two pieces of text (i.e. input and output of TST model)
+
+    This custom evaluation metric aims to quantify content preservation by
+    first modifying text to remove all style-related tokens leaving just
+    content related tokens behind. Style tokens are determind on a
+    sentence-by-sentence basis by extracting out salient token attributions
+    from a trained Style Classifier (BERT) so contextual information is
+    perserved in the attribution scores. Style tokens are then masked/removed
+    from the text. We pass the style-less sentences through a pre-trained,
+    but not fine-tuned SentenceBert model to compute sentence embeddings.
+    Cosine similarity on the embeddings produces a score that should represent
+    content preservation.
+
+    PSUEDO-CODE: (higher score is better preservation)
+    1. mask out style tokens for input and output text (1str)
+    2. get SBERT embedddings for each (multi)
+    3. calculate cosine similarity (multi pairs)
 
     Attributes:
+        cls_model_identifier (str)
         sbert_model_identifier (str)
 
     """
@@ -217,7 +265,12 @@ class ContentPreservationScorer:
         )
 
     def calculate_content_preservation_score(
-        self, input_text: List[str], output_text: List[str]
+        self,
+        input_text: List[str],
+        output_text: List[str],
+        threshold: float = 0.3,
+        mask_type: str = "pad",
+        return_all: bool = False,
     ) -> List[float]:
         """
         Calcualates the content preservation score (CPS) between two pieces of text.
@@ -227,21 +280,58 @@ class ContentPreservationScorer:
                 to counterpart in output_text
             ouptput_text (list) - list of output texts with indicies corresponding
                 to counterpart in input_text
+            return_all (bool) - If true, return dict containing intermediate
+                text with style masking applied, along with scores
+            mask_type (str) - "pad", "remove", or "none"
 
         Returns:
-            A list of floats with corresponding style transfer intensity scores.
+            A list of floats with corresponding content preservation scores.
 
         PSUEDO-CODE: (higher score is better preservation)
-            1. mask out style tokens for input and output text
-            2. get SBERT embedddings for each
-            3. calculate cosine similarity
+            1. mask out style tokens for input and output text (1str)
+            2. get SBERT embedddings for each (multi)
+            3. calculate cosine similarity (multi pairs)
         """
         if len(input_text) != len(output_text):
             raise ValueError(
                 "input_text and output_text must be of same length with corresponding items"
             )
 
-        pass
+        if mask_type != "none":
+            # Mask out style tokens
+            masked_input_text = [
+                self.mask_style_tokens(text, mask_type=mask_type, threshold=threshold)
+                for text in input_text
+            ]
+            masked_output_text = [
+                self.mask_style_tokens(text, mask_type=mask_type, threshold=threshold)
+                for text in output_text
+            ]
+
+            # Compute SBert embeddings
+            input_embeddings = self.compute_sentence_embeddings(masked_input_text)
+            output_embeddings = self.compute_sentence_embeddings(masked_output_text)
+        else:
+            # Compute SBert embeddings on unmasked text
+            input_embeddings = self.compute_sentence_embeddings(input_text)
+            output_embeddings = self.compute_sentence_embeddings(output_text)
+
+        # Calculate cosine similarity
+        scores = self.cosine_similarity(input_embeddings, output_embeddings)
+
+        if return_all:
+            output = {
+                "scores": scores,
+                "masked_input_text": masked_input_text
+                if mask_type != "none"
+                else input_text,
+                "masked_output_text": masked_output_text
+                if mask_type != "none"
+                else output_text,
+            }
+            return output
+        else:
+            return scores
 
     def calculate_feature_attribution_scores(
         self, text: str, class_index: int = 0, as_norm: bool = False
@@ -369,7 +459,13 @@ class ContentPreservationScorer:
 
     @staticmethod
     def cosine_similarity(tensor1: torch.Tensor, tensor2: torch.Tensor) -> List[float]:
-        """ """
+        """
+        Calculate cosine similarity on pairs of embedddings.
+
+        Can handle 1D Tensor for single pair or 2D Tensors with corresponding indicies
+        for matrix operation on multiple pairs.
+
+        """
 
         assert tensor1.shape == tensor2.shape
 
