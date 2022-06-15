@@ -14,7 +14,11 @@ from transformers import (
 import matplotlib.pyplot as plt
 from sklearn.metrics import ConfusionMatrixDisplay, classification_report
 
-from src.inference import ContentPreservationScorer
+from src.inference import (
+    SubjectivityNeutralizer,
+    StyleIntensityClassifier,
+    ContentPreservationScorer,
+)
 
 
 class StyleClassifierEvaluation:
@@ -332,6 +336,100 @@ class ContentPreservationEvaluation:
 
         FILE_PATH = os.path.join(
             os.path.expanduser("~"), "data/output/cpe_metrics/", f"{name}.pkl"
+        )
+        self.metric_df = pd.read_pickle(FILE_PATH)
+
+        print(f"Loaded `self.metric_df` from {FILE_PATH}")
+
+
+class StyleTransferEvaluation:
+    """
+
+    TO-DO:
+        - Build caching system for pred_text and metric_df bbased on model/dataset identifiers
+    """
+
+    def __init__(
+        self,
+        seq2seq_model_identifier: str,
+        cls_model_identifier: str,
+        dataset_identifier: str,
+    ):
+        self.seq2seq_model_identifier = seq2seq_model_identifier
+        self.cls_model_identifier = cls_model_identifier
+        self.dataset_identifier = dataset_identifier
+        self.device = (
+            torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+        )
+
+        self._initialize_hf_artifacts()
+        self._construct_dataloader()
+
+    def _initialize_hf_artifacts(self):
+        """
+        Initialize a HuggingFace dataset, SubjectivityNeutralizer, StyleIntensityClassifier,
+        and ContentPreservationScorer inference using the provided identifiers.
+
+        """
+        self.dataset = load_from_disk(self.dataset_identifier)
+        self.sn = SubjectivityNeutralizer(self.seq2seq_model_identifier)
+        self.sc = StyleIntensityClassifier(self.cls_model_identifier)
+
+    def _construct_dataloader(self):
+        """
+        Initialize the evaluation dataloader.
+
+        Note: here we are batching untokenized sentences since the downstream evaluation
+        pipeline metrics will operate on raw text as input.
+
+        """
+        self.eval_dataloader = torch.utils.data.DataLoader(
+            self.dataset["validation"],
+            batch_size=32,
+            drop_last=False,
+            pin_memory=True,
+            shuffle=False,
+        )
+
+    def evaluate(self, save_name="metric_df"):
+        """
+        Peformamce evaluation.
+
+        """
+
+        metric_collection = defaultdict(list)
+
+        for batch in tqdm(self.eval_dataloader):
+
+            batch["pred_text"] = self.sn.transfer(batch["source_text"])
+            batch["pred_sti"] = self.sc.calculate_transfer_intensity(
+                input_text=batch["source_text"], output_text=batch["pred_text"]
+            )
+            batch["target_sti"] = self.sc.calculate_transfer_intensity(
+                input_text=batch["source_text"], output_text=batch["target_text"]
+            )
+
+            # collect data
+            for k, v in batch.items():
+                metric_collection[k].extend(v)
+
+        self.metric_df = pd.DataFrame(metric_collection)
+        self._save_metric_df(save_name)
+
+    def _save_metric_df(self, name):
+
+        FILE_PATH = os.path.join(
+            os.path.expanduser("~"), "data/output/ste_metrics/", f"{name}.pkl"
+        )
+        os.makedirs(os.path.dirname(FILE_PATH), exist_ok=True)
+        self.metric_df.to_pickle(FILE_PATH)
+
+        print(f"Saved `self.metric_df` to {FILE_PATH}")
+
+    def load_metric_df(self, name="metric_df"):
+
+        FILE_PATH = os.path.join(
+            os.path.expanduser("~"), "data/output/ste_metrics/", f"{name}.pkl"
         )
         self.metric_df = pd.read_pickle(FILE_PATH)
 
