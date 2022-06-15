@@ -21,7 +21,6 @@ class SubjectivityNeutralizer:
         model_identifier (str) - Path to the model that will be used by the pipeline to make predictions.
         max_gen_lenght (int) - upper limit on number of tokens the model can generate as output
 
-
     TO-DO:
         - Write tests to make sure each public method works...
         - Add option to show/return the diff between input/output
@@ -60,10 +59,21 @@ class SubjectivityNeutralizer:
 
 class StyleIntensityClassifier:
     """
+    Utility for calculating Style Transfer Intensity between
+    two pieces of text (i.e. input and output of TST model)
 
-    TO-DO:
-        - Add option classify text as neutral/subjective
-        - Add ability to calculate STI
+    This custom evaluation metric aims to quantify the magnitude of transfered
+    style between two texts. To accomplish this, we pass input and output texts
+    through a trained style classifier to produce two distributions. We then
+    utilize Earth Movers Distance (EMD) to calculate the minimum "cost"/"work"
+    required to turn the input distribution into the output distribution. This
+    metric allows us to capture a more nuanced, per-example measure of style
+    transfer when compared to simply applying a classifier to determine the
+    binary decision of achieved target style? (yes/no).
+
+    Attributes:
+        model_identifier (str)
+
     """
 
     def __init__(self, model_identifier: str):
