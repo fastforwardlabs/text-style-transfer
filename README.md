@@ -10,10 +10,13 @@ This repo accompanies the FF24 research cycle focused on Text Style Transfer (TS
 ```
 .
 ├── data                                          # contains raw/post-processed data & eval metric artifacts
+├── models                                        # contains model artifacts
 ├── scripts                                       # contains all data prep, training, evaluation scripts
 ├── notebooks                                     # contains all notebooks that demonstrate basic usage
 ├── src                                           # main library of code supporting modeling and evalution
-├── requirements.txt                              # python dependencies
+├── requirements.txt                              # project level dependencies
+├── cdsw-build.sh                                 # install script for all project dependencies
+├── setup.py
 ├── LICENSE
 └── README.md
 ```
